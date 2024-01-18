@@ -82,6 +82,8 @@ New Features
 * SOLR-17006: Collection creation & adding replicas: User-defined properties are persisted to state.json and
   applied to new replicas, available for use as property substitution in configuration files.  (Vincent Primault)
 
+* SOLR-16986: Log CPU time per request via solr.log.cputime (Gilles Bellaton, David Smiley)
+
 * SOLR-16974: Circuit Breakers can now be configured globally (janhoy, Christine Poerschke)
 
 * SOLR-16743: When using TLS, Solr can now auto-reload the keystore and truststore without the need to restart the process.
@@ -135,6 +137,8 @@ Improvements
   MERGEINDEXES is now available at `POST /api/cores/coreName/merge-indices` (Sanjay Dutt via Jason Gerlowski)
 
 * PR#2186: Include the external file name in the log instead of the hard-coded value in FileFloatSource.java. (Hamzeh Aldmour via Uwe Schindler)
+
+* SOLR-17096: solr.xml now supports declaring clusterSingleton plugins (Paul McArthur, David Smiley)
 
 Optimizations
 ---------------------
