@@ -31,6 +31,7 @@ import static org.apache.solr.security.AuthenticationPlugin.AUTHENTICATION_PLUGI
 import com.github.benmanes.caffeine.cache.Interner;
 import com.google.common.annotations.VisibleForTesting;
 import io.opentelemetry.api.trace.Tracer;
+import jakarta.inject.Singleton;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.nio.file.Path;
@@ -48,12 +49,12 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import javax.inject.Singleton;
 import org.apache.http.auth.AuthSchemeProvider;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.config.Lookup;
@@ -175,6 +176,10 @@ public class CoreContainer {
 
   final SolrCores solrCores;
 
+  public Executor getCollectorExecutor() {
+    return collectorExecutor;
+  }
+
   public static class CoreLoadFailure {
 
     public final CoreDescriptor cd;
@@ -277,6 +282,8 @@ public class CoreContainer {
   private final ObjectCache objectCache = new ObjectCache();
 
   public final NodeRoles nodeRoles = new NodeRoles(System.getProperty(NodeRoles.NODE_ROLES_PROP));
+
+  private final ExecutorService collectorExecutor;
 
   private final ClusterSingletons clusterSingletons =
       new ClusterSingletons(
@@ -412,7 +419,8 @@ public class CoreContainer {
         new OrderedExecutor(
             cfg.getReplayUpdatesThreads(),
             ExecutorUtil.newMDCAwareCachedThreadPool(
-                cfg.getReplayUpdatesThreads(),
+                cfg.getReplayUpdatesThreads(), // thread count
+                cfg.getReplayUpdatesThreads(), // queue size
                 new SolrNamedThreadFactory("replayUpdatesExecutor")));
     this.appHandlersByConfigSetId = new JerseyAppHandlerCache();
 
@@ -431,6 +439,12 @@ public class CoreContainer {
     this.allowPaths = allowPathBuilder.build();
 
     this.allowListUrlChecker = AllowListUrlChecker.create(config);
+
+    this.collectorExecutor =
+        ExecutorUtil.newMDCAwareCachedThreadPool(
+            cfg.getIndexSearcherExecutorThreads(), // thread count
+            cfg.getIndexSearcherExecutorThreads() * 1000, // queue size
+            new SolrNamedThreadFactory("searcherCollector"));
   }
 
   @SuppressWarnings({"unchecked"})
@@ -656,6 +670,7 @@ public class CoreContainer {
     distributedCollectionCommandRunner = Optional.empty();
     allowPaths = null;
     allowListUrlChecker = null;
+    collectorExecutor = null;
   }
 
   public static CoreContainer createAndLoad(Path solrHome) {
@@ -1080,9 +1095,9 @@ public class CoreContainer {
     } finally {
       if (asyncSolrCoreLoad) {
         coreContainerWorkExecutor.submit(
-            () -> ExecutorUtil.shutdownAndAwaitTermination(coreLoadExecutor));
+            () -> ExecutorUtil.shutdownAndAwaitTerminationForever(coreLoadExecutor));
       } else {
-        ExecutorUtil.shutdownAndAwaitTermination(coreLoadExecutor);
+        ExecutorUtil.shutdownAndAwaitTerminationForever(coreLoadExecutor);
       }
     }
 
@@ -1247,6 +1262,7 @@ public class CoreContainer {
     }
 
     ExecutorUtil.shutdownAndAwaitTermination(coreContainerAsyncTaskExecutor);
+    ExecutorUtil.shutdownAndAwaitTermination(collectorExecutor);
     ExecutorService customThreadPool =
         ExecutorUtil.newMDCAwareCachedThreadPool(new SolrNamedThreadFactory("closeThreadPool"));
 
@@ -2050,15 +2066,13 @@ public class CoreContainer {
         if (docCollection != null) {
           Replica replica = docCollection.getReplica(cd.getCloudDescriptor().getCoreNodeName());
           assert replica != null : cd.getCloudDescriptor().getCoreNodeName() + " had no replica";
-          if (replica.getType() == Replica.Type.TLOG) { // TODO: needed here?
+          if (replica.getType().replicateFromLeader) {
             getZkController().stopReplicationFromLeader(core.getName());
             if (!cd.getCloudDescriptor().isLeader()) {
-              getZkController().startReplicationFromLeader(newCore.getName(), true);
+              getZkController()
+                  .startReplicationFromLeader(
+                      newCore.getName(), replica.getType().requireTransactionLog);
             }
-
-          } else if (replica.getType() == Replica.Type.PULL) {
-            getZkController().stopReplicationFromLeader(core.getName());
-            getZkController().startReplicationFromLeader(newCore.getName(), false);
           }
         }
         success = true;
@@ -2166,9 +2180,8 @@ public class CoreContainer {
     if (zkSys.getZkController() != null) {
       // cancel recovery in cloud mode
       core.getSolrCoreState().cancelRecovery();
-      if (cd.getCloudDescriptor().getReplicaType() == Replica.Type.PULL
-          || cd.getCloudDescriptor().getReplicaType() == Replica.Type.TLOG) {
-        // Stop replication if this is part of a pull/tlog replica before closing the core
+      if (cd.getCloudDescriptor().getReplicaType().replicateFromLeader) {
+        // Stop replication before closing the core
         zkSys.getZkController().stopReplicationFromLeader(name);
       }
     }
@@ -2453,6 +2466,10 @@ public class CoreContainer {
 
   public long getStatus() {
     return status;
+  }
+
+  public boolean isStatusLoadComplete() {
+    return LOAD_COMPLETE == (getStatus() & LOAD_COMPLETE);
   }
 
   public boolean hideStackTrace() {
