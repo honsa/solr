@@ -198,9 +198,9 @@ public class HttpJdkSolrClient extends HttpSolrClientBase {
     if (ClientUtils.shouldApplyDefaultCollection(collection, solrRequest)) {
       collection = defaultCollection;
     }
-    String url = getRequestPath(solrRequest, collection);
+    String url = getRequestUrl(solrRequest, collection);
     ResponseParser parserToUse = responseParser(solrRequest);
-    ModifiableSolrParams queryParams = initalizeSolrParams(solrRequest, parserToUse);
+    ModifiableSolrParams queryParams = initializeSolrParams(solrRequest, parserToUse);
     var reqb = HttpRequest.newBuilder();
     PreparedRequest pReq = null;
     try {

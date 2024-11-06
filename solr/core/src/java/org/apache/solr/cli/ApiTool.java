@@ -52,7 +52,8 @@ public class ApiTool extends ToolBase {
   @Override
   public List<Option> getOptions() {
     return List.of(
-        Option.builder("get")
+        Option.builder()
+            .longOpt("solr-url")
             .argName("URL")
             .hasArg()
             .required(true)
@@ -63,15 +64,11 @@ public class ApiTool extends ToolBase {
 
   @Override
   public void runImpl(CommandLine cli) throws Exception {
-    String response = null;
-    String getUrl = cli.getOptionValue("get");
-    if (getUrl != null) {
-      response = callGet(getUrl, cli.getOptionValue(SolrCLI.OPTION_CREDENTIALS.getLongOpt()));
-    }
-    if (response != null) {
-      // pretty-print the response to stdout
-      echo(response);
-    }
+    String getUrl = cli.getOptionValue("solr-url");
+    String response = callGet(getUrl, cli.getOptionValue(SolrCLI.OPTION_CREDENTIALS.getLongOpt()));
+
+    // pretty-print the response to stdout
+    echo(response);
   }
 
   protected String callGet(String url, String credentials) throws Exception {
@@ -109,7 +106,7 @@ public class ApiTool extends ToolBase {
    * @return Solr base url with port and root (from above example http://localhost:8983/solr)
    */
   public static String getSolrUrlFromUri(URI uri) {
-    return uri.getScheme() + "://" + uri.getAuthority() + "/" + uri.getPath().split("/")[1];
+    return uri.resolve("/" + uri.getPath().split("/")[1]).toString();
   }
 
   public static ModifiableSolrParams getSolrParamsFromUri(URI uri) {

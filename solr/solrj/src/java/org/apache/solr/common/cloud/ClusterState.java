@@ -155,6 +155,16 @@ public class ClusterState implements MapWriter {
   }
 
   /**
+   * The collection names. Like a Set but might not implement it. Immutable; non-null. Some names
+   * returned might not resolve via {@link #getCollectionOrNull(String)}, so consider this a close
+   * approximation.
+   */
+  public Collection<String> getCollectionNames() {
+    // should we document we are sorted too?  Albeit that ties our hands.
+    return immutableCollectionStates.keySet();
+  }
+
+  /**
    * Get a map of collection name vs DocCollection objects
    *
    * <p>Implementation note: This method resolves the collection reference by calling {@link
@@ -438,7 +448,7 @@ public class ClusterState implements MapWriter {
     }
 
     /**
-     * Return the DocCollection, always refetching if lazy. Equivalent to get(false)
+     * Return the DocCollection, always re-fetching if lazy. Equivalent to get(false)
      *
      * @return The collection state modeled in zookeeper
      */
@@ -471,6 +481,7 @@ public class ClusterState implements MapWriter {
     }
   }
 
+  /** The approximate number of collections. */
   public int size() {
     return collectionStates.size();
   }

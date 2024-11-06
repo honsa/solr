@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.MissingArgumentException;
 import org.apache.commons.cli.Option;
 import org.apache.solr.client.solrj.SolrClient;
 import org.apache.solr.common.util.NamedList;
@@ -58,21 +59,24 @@ public class ConfigTool extends ToolBase {
             .required(true)
             .desc("Name of the collection.")
             .build(),
-        Option.builder("action")
+        Option.builder("a")
+            .longOpt("action")
             .argName("ACTION")
             .hasArg()
             .required(false)
             .desc(
                 "Config API action, one of: set-property, unset-property, set-user-property, unset-user-property; default is 'set-property'.")
             .build(),
-        Option.builder("property")
+        Option.builder()
+            .longOpt("property")
             .argName("PROP")
             .hasArg()
             .required(true)
             .desc(
                 "Name of the Config API property to apply the action to, such as: 'updateHandler.autoSoftCommit.maxTime'.")
             .build(),
-        Option.builder("value")
+        Option.builder()
+            .longOpt("value")
             .argName("VALUE")
             .hasArg()
             .required(false)
@@ -91,6 +95,10 @@ public class ConfigTool extends ToolBase {
     String property = cli.getOptionValue("property");
     String value = cli.getOptionValue("value");
 
+    // value is required unless the property is one of the unset- type.
+    if (!action.contains("unset-") && value == null) {
+      throw new MissingArgumentException("'value' is a required option.");
+    }
     Map<String, Object> jsonObj = new HashMap<>();
     if (value != null) {
       Map<String, String> setMap = new HashMap<>();
@@ -107,7 +115,7 @@ public class ConfigTool extends ToolBase {
     String updatePath = "/" + collection + "/config";
 
     echo("\nPOSTing request to Config API: " + solrUrl + updatePath);
-    echo(jsonBody);
+    echoIfVerbose(jsonBody);
 
     try (SolrClient solrClient =
         SolrCLI.getSolrClient(

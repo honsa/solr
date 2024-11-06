@@ -83,9 +83,8 @@ public class TestDistribFileStore extends SolrCloudTestCase {
             .addConfig("conf", configset("cloud-minimal"))
             .configure();
     try {
-
       byte[] derFile = readFile("cryptokeys/pub_key512.der");
-      uploadKey(derFile, FileStoreAPI.KEYS_DIR + "/pub_key512.der", cluster);
+      uploadKey(derFile, ClusterFileStore.KEYS_DIR + "/pub_key512.der", cluster);
 
       try {
         postFile(
@@ -169,7 +168,7 @@ public class TestDistribFileStore extends SolrCloudTestCase {
                     return true;
                   });
       for (JettySolrRunner jettySolrRunner : cluster.getJettySolrRunners()) {
-        String baseUrl = jettySolrRunner.getBaseUrl().toString().replace("/solr", "/api");
+        String baseUrl = jettySolrRunner.getBaseURLV2().toString();
         String url = baseUrl + "/node/files/package/mypkg/v1.0?wt=javabin";
         assertResponseValues(10, new Fetcher(url, jettySolrRunner), expected);
       }
@@ -196,7 +195,7 @@ public class TestDistribFileStore extends SolrCloudTestCase {
       boolean verifyContent)
       throws Exception {
     for (JettySolrRunner jettySolrRunner : cluster.getJettySolrRunners()) {
-      String baseUrl = jettySolrRunner.getBaseUrl().toString().replace("/solr", "/api");
+      String baseUrl = jettySolrRunner.getBaseURLV2().toString();
       String url = baseUrl + "/node/files" + path + "?wt=javabin&meta=true";
       assertResponseValues(10, new Fetcher(url, jettySolrRunner), expected);
 
@@ -303,7 +302,7 @@ public class TestDistribFileStore extends SolrCloudTestCase {
           // we know these are unequal but call assert instead of fail() because it gives a better
           // error message
           assertEquals(
-              "Failed on path " + key + " of " + description + "after attempt #" + (i + 1),
+              "Failed on path " + key + " of " + description + " after attempt #" + (i + 1),
               val,
               Utils.toJSONString(actual));
         }

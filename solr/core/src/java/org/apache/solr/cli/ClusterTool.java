@@ -54,15 +54,15 @@ public class ClusterTool extends ToolBase {
     return List.of(
         Option.builder()
             .longOpt("property")
-            .argName("PROP")
             .hasArg()
+            .argName("PROPERTY")
             .required(true)
             .desc("Name of the Cluster property to apply the action to, such as: 'urlScheme'.")
             .build(),
         Option.builder()
             .longOpt("value")
-            .argName("VALUE")
             .hasArg()
+            .argName("VALUE")
             .required(false)
             .desc("Set the property to this value.")
             .build(),
